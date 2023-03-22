@@ -11,8 +11,38 @@ class AudioView(BaseView):
         super().__init__()
         self.config_setup = ConfigSetup()
         self.concat_handler = ConcatHandler()
-        self.table_claims = [[claim.path, claim.pos] for claim in self.config_setup.config_audios.claims]
+        self.table_audio_claims = [[claim.path, claim.pos] for claim in self.config_setup.config_audios.claims]
         
+    def claim_window(self):
+        layout = [
+            [
+                sg.Text("Claim path", size=(10,1)),
+                sg.In("", size=(50,1), enable_events=True ,key='claim_file'),
+                sg.FileBrowse(),
+            ],
+            [
+                sg.Text("Claim position", size=(10,1)),
+                sg.In("", size=(50,1), enable_events=True ,key='claim_position'),
+            ],
+            [
+                sg.Button("Add", key="add_claim"),
+            ]
+        ]
+        window = sg.Window("Claim Audio", layout, modal=True)
+        while True:
+            event, values = window.read()
+            if event == "Exit" or event == sg.WIN_CLOSED:
+                break
+            if event == "add_claim":
+                if values['claim_file'] and values['claim_position']:
+                    self.table_audio_claims.append([values['claim_file'], values['claim_position']])
+                    self.window['table_audio_claims'].update(values=self.table_audio_claims)
+                    window.close()
+                    break
+                else:
+                    sg.popup_auto_close("Please fill all fields", auto_close_duration=2)
+            
+        window.close()
 
     def create_layout(self):
         return [
@@ -32,35 +62,39 @@ class AudioView(BaseView):
                 sg.FolderBrowse(), 
             ],
             [
-                sg.Table(
-                    values=self.table_claims,
-                    headings=['Path', 'Position'],
-                    col_widths=[100, 10, 10],
-                    auto_size_columns=False,
-                    justification='left',
-                    num_rows=10,
-                    key='table_claims',
-                    enable_events=True,
-                    row_height=20,
-                    def_col_width=10,
-                    hide_vertical_scroll=True,
-                    alternating_row_color='lightblue',
-                    tooltip='This is a table',
-                ),
-                sg.Column([
+                sg.Frame('Claims', [
                     [
-                        sg.Button('Add', size=(20,1), button_color='green', key='add_audio_claim'),
-                    ],
-                    [
-                        sg.Button('Remove', size=(20,1), button_color='red', key='remove_audio_claim'),
-                    ],
-                ])      
+                        sg.Table(
+                            values=self.table_audio_claims,
+                            headings=['Path', 'Position'],
+                            col_widths=[78, 10, 10],
+                            auto_size_columns=False,
+                            justification='left',
+                            num_rows=10,
+                            key='table_audio_claims',
+                            enable_events=True,
+                            row_height=20,
+                            def_col_width=10,
+                            hide_vertical_scroll=True,
+                            alternating_row_color='lightblue',
+                            tooltip='This is a table',
+                        ),
+                        sg.Column([
+                            [
+                                sg.Button('Add', size=(6,1), key='add_audio_claim'),
+                            ],
+                            [
+                                sg.Button('Remove', size=(6,1), key='remove_audio_claim'),
+                            ],
+                        ], vertical_alignment='top')
+                    ]
+                ])
             ],
             [
                 sg.Frame('Setting', [
                     [
-                        sg.Text('With GPU Nvidia:',),
-                        sg.Checkbox('Yes', default=self.config_setup.config_audios.with_gpu, key='audio_with_gpu'),
+                        sg.Text('With GPU Nvidia:',visible=False),
+                        sg.Checkbox('Yes', default=self.config_setup.config_audios.with_gpu, key='audio_with_gpu', visible=False),
                         sg.Text('No files'), sg.In(self.config_setup.config_audios.files_number, key='audio_files_number', size=(3,1)), 
                         sg.Text('Threads', size=(8,1)), sg.In(self.config_setup.config_audios.threads, key='audio_threads', size=(3,1)),
                         sg.Text('Concat options:'),
@@ -82,10 +116,22 @@ class AudioView(BaseView):
         ]
 
     def handle_events(self, event, values):
+        selected_row = None
         while True:
             event, values = self.window.read(10)
             if event is None or event == sg.WIN_CLOSED:
                 break
+            if event == 'table_audio_claims':
+                selected_row = str(values['table_audio_claims'][0])
+            if event == 'add_audio_claim':
+                self.claim_window()
+            if event == 'remove_audio_claim':
+                if selected_row:
+                    self.table_audio_claims.remove(self.table_audio_claims[int(selected_row)])
+                    self.window['table_audio_claims'].update(values=self.table_audio_claims)
+                    selected_row = None
+                else:
+                    sg.popup_auto_close("Please select a row", auto_close_duration=2)
             if event == 'start_concat_audios':
                 # update UI
                 self.window['start_concat_audios'].update(visible=False)
@@ -100,7 +146,7 @@ class AudioView(BaseView):
                         files_number=self.window['audio_files_number'].get(),
                         threads=self.window['audio_threads'].get(),
                         concat_option=self.window['audio_concat_options'].get(),
-                        claims=[Claim(path=claim[0], pos=claim[1]) for claim in self.table_claims],
+                        claims=[Claim(path=claim[0], pos=claim[1]) for claim in self.table_audio_claims],
                     )
                 )
                 # run concat
