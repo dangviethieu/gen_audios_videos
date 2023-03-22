@@ -1,7 +1,7 @@
 import json
 import os
 from pydantic import BaseModel
-from helpers.constants import CONFIG_AUDIOS_FILE
+from helpers.constants import CONFIG_AUDIOS_FILE, ConcatOptions
 
 
 class Claim(BaseModel):
@@ -13,7 +13,9 @@ class ConfigAudios(BaseModel):
     input_audio_title: str
     output_audio_folder: str
     with_gpu: bool = False
+    files_number: int = 100
     threads: int = 1
+    concat_option: str = ConcatOptions.CONCAT_DEMUXER.value
     claims: list[Claim] = []
 
 
@@ -39,10 +41,12 @@ class ConfigSetup:
                 input_audio_title='',
                 output_audio_folder='',
                 with_gpu=False,
+                files_number=100,
                 threads=1,
+                concat_option=ConcatOptions.CONCAT_DEMUXER.value,
                 claims=[
-                    Claim(path='D:\FreeLancer\Video\gen_audios_videos\views\audio_view.py', pos=0),
-                    Claim(path='views\audio_view.py', pos=1),
-                    Claim(path='views\main_view.py', pos=2),
+                    Claim(path='D:\dangviethieu\python\gen_audios_videos\test\claim\Ai4-Lazii-8845956.mp3', pos=0),
+                    Claim(path='D:\dangviethieu\python\gen_audios_videos\test\claim\ChayTimAiprelude-Uyen-8502530.mp3', pos=1),
+                    Claim(path='D:\dangviethieu\python\gen_audios_videos\test\claim\ChetTrongEm-ThinhSuy-8261960.mp3', pos=2),
                 ],
             )

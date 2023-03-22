@@ -1,3 +1,5 @@
 venv
 test
+logs
+configs
 __pycache__

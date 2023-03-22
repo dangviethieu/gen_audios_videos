@@ -11,3 +11,7 @@ USERNAME = 'hieudv2'
 PASSWORD = '123'
 
 EXT_IMG = ['png', 'jpg', 'gif', 'jpeg']
+
+class ConcatOptions(enum.Enum):
+    CONCAT_DEMUXER = "concat demuxer (same codecs)"
+    CONCAT_FILTER = "concat filter (diff codecs)"
