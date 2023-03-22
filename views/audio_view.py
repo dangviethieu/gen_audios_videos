@@ -1,7 +1,7 @@
 import os
 import time
 from .base import BaseView, sg
-from controllers.config import ConfigSetup, ConfigAudios, Claim
+from controllers.config import ConfigSetup, Config, Claim
 from controllers.concat_audios import ConcatHandler
 from helpers.constants import ConcatOptions
 
@@ -48,17 +48,17 @@ class AudioView(BaseView):
         return [
             [
                 sg.Text('Input audio folder:', size=(16,1)), 
-                sg.In(self.config_setup.config_audios.input_audios_folder, size=(96,1), enable_events=True ,key='input_audios_folder'), 
+                sg.In(self.config_setup.config_audios.input_folder, size=(96,1), enable_events=True ,key='input_audios_folder'), 
                 sg.FolderBrowse(),
             ],
             [
                 sg.Text('Input audio title:', size=(16,1)), 
-                sg.In(self.config_setup.config_audios.input_audio_title, size=(96,1), enable_events=True ,key='input_audio_title'), 
+                sg.In(self.config_setup.config_audios.input_title, size=(96,1), enable_events=True ,key='input_audio_title'), 
                 sg.FolderBrowse(),
             ],
             [
                 sg.Text('Output folder:', size=(16,1)), 
-                sg.In(self.config_setup.config_audios.output_audio_folder, size=(96,1), enable_events=True ,key='output_audio_folder'), 
+                sg.In(self.config_setup.config_audios.output_folder, size=(96,1), enable_events=True ,key='output_audio_folder'), 
                 sg.FolderBrowse(), 
             ],
             [
@@ -117,50 +117,46 @@ class AudioView(BaseView):
 
     def handle_events(self, event, values):
         selected_row = None
-        while True:
-            event, values = self.window.read(10)
-            if event is None or event == sg.WIN_CLOSED:
-                break
-            if event == 'table_audio_claims':
-                selected_row = str(values['table_audio_claims'][0])
-            if event == 'add_audio_claim':
-                self.claim_window()
-            if event == 'remove_audio_claim':
-                if selected_row:
-                    self.table_audio_claims.remove(self.table_audio_claims[int(selected_row)])
-                    self.window['table_audio_claims'].update(values=self.table_audio_claims)
-                    selected_row = None
-                else:
-                    sg.popup_auto_close("Please select a row", auto_close_duration=2)
-            if event == 'start_concat_audios':
-                # update UI
-                self.window['start_concat_audios'].update(visible=False)
-                self.window['stop_concat_audios'].update(visible=True)
-                # store config
-                self.config_setup.store_audio_sub_config(
-                    ConfigAudios(
-                        input_audios_folder=self.window['input_audios_folder'].get(),
-                        output_audio_folder=self.window['output_audio_folder'].get(),
-                        input_audio_title=self.window['input_audio_title'].get(),
-                        with_gpu=self.window['audio_with_gpu'].get(),
-                        files_number=self.window['audio_files_number'].get(),
-                        threads=self.window['audio_threads'].get(),
-                        concat_option=self.window['audio_concat_options'].get(),
-                        claims=[Claim(path=claim[0], pos=claim[1]) for claim in self.table_audio_claims],
-                    )
+        if event == 'table_audio_claims':
+            selected_row = str(values['table_audio_claims'][0])
+        if event == 'add_audio_claim':
+            self.claim_window()
+        if event == 'remove_audio_claim':
+            if selected_row:
+                self.table_audio_claims.remove(self.table_audio_claims[int(selected_row)])
+                self.window['table_audio_claims'].update(values=self.table_audio_claims)
+                selected_row = None
+            else:
+                sg.popup_auto_close("Please select a row", auto_close_duration=2)
+        if event == 'start_concat_audios':
+            # update UI
+            self.window['start_concat_audios'].update(visible=False)
+            self.window['stop_concat_audios'].update(visible=True)
+            # store config
+            self.config_setup.store_audio_sub_config(
+                Config(
+                    input_folder=self.window['input_audios_folder'].get(),
+                    output_folder=self.window['output_audio_folder'].get(),
+                    input_title=self.window['input_audio_title'].get(),
+                    with_gpu=self.window['audio_with_gpu'].get(),
+                    files_number=self.window['audio_files_number'].get(),
+                    threads=self.window['audio_threads'].get(),
+                    concat_option=self.window['audio_concat_options'].get(),
+                    claims=[Claim(path=claim[0], pos=claim[1]) for claim in self.table_audio_claims],
                 )
-                # run concat
-                self.concat_handler.start(self.config_setup.config_audios)
-            if event == 'stop_concat_audios':
-                # update UI
-                self.window['start_concat_audios'].update(visible=True)
-                self.window['stop_concat_audios'].update(visible=False)
-                # stop concat
-                self.concat_handler.stop()
-            # update logs
-            while not self.concat_handler.logs.empty():
-                self.window['logs_audios'].print(self.concat_handler.logs.get())
-            while not self.concat_handler.tasks_done.empty():
-                self.concat_handler.tasks_done.get()
-                self.window['start_concat_audios'].update(visible=True)
-                self.window['stop_concat_audios'].update(visible=False)
+            )
+            # run concat
+            self.concat_handler.start(self.config_setup.config_audios)
+        if event == 'stop_concat_audios':
+            # update UI
+            self.window['start_concat_audios'].update(visible=True)
+            self.window['stop_concat_audios'].update(visible=False)
+            # stop concat
+            self.concat_handler.stop()
+        # update logs
+        while not self.concat_handler.logs.empty():
+            self.window['logs_audios'].print(self.concat_handler.logs.get())
+        while not self.concat_handler.tasks_done.empty():
+            self.concat_handler.tasks_done.get()
+            self.window['start_concat_audios'].update(visible=True)
+            self.window['stop_concat_audios'].update(visible=False)
