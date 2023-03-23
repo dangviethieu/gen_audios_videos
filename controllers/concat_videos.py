@@ -41,7 +41,7 @@ class ConcatVideoHandler(BaseHandler):
             return
         files_title = []
         for file_title_path in files_title_path:
-            files_title.extend(open(file_title_path).read().splitlines())
+            files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
         
         self.custom_log(f'Start concat each {config.files_number} files in total {len(files)} files in folder {config.input_folder}...')
         tasks_to_accomplish = Queue()

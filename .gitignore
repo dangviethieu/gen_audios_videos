@@ -2,4 +2,5 @@ venv
 test
 logs
 configs
+ff*
 __pycache__

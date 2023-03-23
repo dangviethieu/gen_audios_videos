@@ -41,7 +41,7 @@ class ConcatAudioHandler(BaseHandler):
             return
         files_title = []
         for file_title_path in files_title_path:
-            files_title.extend(open(file_title_path).read().splitlines())
+            files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
         
         self.custom_log(f'Start concat each {config.files_number} files in total {len(files)} files in folder {config.input_folder}...')
         tasks_to_accomplish = Queue()
@@ -109,7 +109,7 @@ class ConcatTask(Process):
                                                 # get length of claim file
                                                 claim_length = get_length(claim.path)
                                                 # add claim file into description file
-                                                description += f"{Path(claim.path).stem} -{time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                                description += f"{Path(claim.path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                                 current_length += claim_length
                                             else:
                                                 custom_log(f'#Thread {index+1}: ---> need claim file {claim.pos} format same with input files format!')

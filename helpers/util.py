@@ -3,7 +3,7 @@ import subprocess
 
 
 def random_line(filename):
-    lines = open(filename).read().splitlines()
+    lines = open(filename, encoding='utf-8').read().splitlines()
     return random.choice(lines)
 
 def get_length(filename: str) -> float:
@@ -18,6 +18,8 @@ def get_length(filename: str) -> float:
     return length
 
 def call_ffmpeg(cmd):
+    # print(cmd)
     process = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding='utf-8') 
     for _ in process.stdout:
-        print(_)
+        pass
+        # print(_.replace("\n", ""))
