@@ -11,9 +11,9 @@ import random
 from pathlib import Path
 
 
-class ConcatAudioHandler(BaseHandler):
+class ConcatVideoHandler(BaseHandler):
     def __init__(self) -> None:
-        super().__init__(service='concat_audios')
+        super().__init__(service='concat_videos')
         self.processes: List[Process] = []
         self.logs = Queue()
         self.tasks_done = Queue()
@@ -58,7 +58,7 @@ class ConcatAudioHandler(BaseHandler):
             p.start()
 
     def stop(self):
-        self.custom_log('Stop concat audio task')
+        self.custom_log('Stop concat video task')
         for process in self.processes:
             process.terminate()
         self.custom_log('----------------------------------------------------------------')
@@ -72,7 +72,7 @@ class ConcatTask(Process):
         self.tasks_done = tasks_done
     
     def run(self):
-        self._logger = setup_custom_logger('concat audio task')
+        self._logger = setup_custom_logger('concat video task')
         custom_log = lambda x: (self.logs.put(x), self._logger.info(x))
         while True:
             try:
@@ -91,15 +91,15 @@ class ConcatTask(Process):
                         # init params
                         title = random.choice(files_title)
                         files_title.remove(title)
-                        title_audio = title + "." + files[0].split('.')[-1]
+                        title_video = title + "." + files[0].split('.')[-1]
                         title_description = title + ".txt"
                         description = ""
                         current_length = 0
                         # start concat
-                        custom_log(f'#Thread {index+1}: concat {title_audio} ...')
+                        custom_log(f'#Thread {index+1}: concat {title_video} ...')
                         # option 1: concat demuxer
                         if config.concat_option == ConcatOptions.CONCAT_DEMUXER.value:
-                            with open(f"configs/{title_audio}.txt", "w", encoding='utf-8') as f:
+                            with open(f"configs/{title_video}.txt", "w", encoding='utf-8') as f:
                                 for index_file, file in enumerate(files_):
                                     for claim in config.claims:
                                         if index_file == claim.pos:
@@ -120,13 +120,13 @@ class ConcatTask(Process):
                                     # add claim file into description file
                                     description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                     current_length += file_length
-                            cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_audio}.txt\" -c copy \"{config.output_folder}/{title_audio}\""
+                            cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_video}.txt\" -c copy \"{config.output_folder}/{title_video}\""
                             call_ffmpeg(cmd)
-                            os.remove(f"configs/{title_audio}.txt")
+                            os.remove(f"configs/{title_video}.txt")
                             # write description file
                             with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
                                 f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
                         # option 2: concat filter
                         else:
                             no_files = len(files_)
@@ -150,15 +150,15 @@ class ConcatTask(Process):
                                 current_length += file_length
                             cmd += "-filter_complex \""
                             for index_file in range(len(files_)):
-                                cmd += "[" + str(index_file) + ":a]"
-                            cmd += f" concat=n={no_files}:v=0:a=1 [a]\" -map [a] \"{config.output_folder}/{title_audio}\""
+                                cmd += "[" + str(index_file) + ":v][" + str(index_file) + ":a]"
+                            cmd += f" concat=n={no_files}:v=1:a=1 [v][a]\" -map [v] -map [a] \"{config.output_folder}/{title_video}\""
                             call_ffmpeg(cmd)
                             # write description file
                             with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
                                 f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
                     except Exception as e:
-                        custom_log(f'#Thread {index+1}: concat {title_audio} failed!')
+                        custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                         _, _, exc_tb = sys.exc_info()
                         custom_log(f'#Thread {index+1}: line: {exc_tb.tb_lineno}, error: {e}')
                 self.tasks_done.put(1)

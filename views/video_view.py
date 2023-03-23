@@ -1,8 +1,6 @@
-import os
-import time
 from .base import BaseView, sg
 from controllers.config import ConfigSetup, Config, Claim
-from controllers.concat_audios import ConcatHandler
+from controllers.concat_videos import ConcatVideoHandler
 from helpers.constants import ConcatOptions
 
 
@@ -10,14 +8,20 @@ class VideoView(BaseView):
     def __init__(self):
         super().__init__()
         self.config_setup = ConfigSetup()
-        self.concat_handler = ConcatHandler()
-        self.table_video_claims = [[claim.path, claim.pos] for claim in self.config_setup.config_videos.claims]
+        self.concat_handler = ConcatVideoHandler()
+        self.selected_row = None
+        self.table_video_claims = [[claim.path, claim.background, claim.pos] for claim in self.config_setup.config_videos.claims]
         
     def claim_window(self):
         layout = [
             [
                 sg.Text("Claim path", size=(10,1)),
                 sg.In("", size=(50,1), enable_events=True ,key='claim_file'),
+                sg.FileBrowse(),
+            ],
+            [
+                sg.Text("Claim background", size=(10,1)),
+                sg.In("", size=(50,1), enable_events=True ,key='claim_background'),
                 sg.FileBrowse(),
             ],
             [
@@ -34,8 +38,8 @@ class VideoView(BaseView):
             if event == "Exit" or event == sg.WIN_CLOSED:
                 break
             if event == "add_claim":
-                if values['claim_file'] and values['claim_position']:
-                    self.table_video_claims.append([values['claim_file'], values['claim_position']])
+                if values['claim_file'] and values['claim_position'] and values['claim_background']:
+                    self.table_video_claims.append([values['claim_file'], values['claim_background'],values['claim_position']])
                     self.window['table_video_claims'].update(values=self.table_video_claims)
                     window.close()
                     break
@@ -66,8 +70,8 @@ class VideoView(BaseView):
                     [
                         sg.Table(
                             values=self.table_video_claims,
-                            headings=['Path', 'Position'],
-                            col_widths=[78, 10, 10],
+                            headings=['Path', 'Background', 'Pos'],
+                            col_widths=[48, 35, 5],
                             auto_size_columns=False,
                             justification='left',
                             num_rows=10,
@@ -76,8 +80,6 @@ class VideoView(BaseView):
                             row_height=20,
                             def_col_width=10,
                             hide_vertical_scroll=True,
-                            alternating_row_color='lightblue',
-                            tooltip='This is a table',
                         ),
                         sg.Column([
                             [
@@ -116,16 +118,15 @@ class VideoView(BaseView):
         ]
 
     def handle_events(self, event, values):
-        selected_row = None
         if event == 'table_video_claims':
-            selected_row = str(values['table_video_claims'][0])
+            self.selected_row = str(values['table_video_claims'][0])
         if event == 'add_video_claim':
             self.claim_window()
         if event == 'remove_video_claim':
-            if selected_row:
-                self.table_video_claims.remove(self.table_video_claims[int(selected_row)])
+            if self.selected_row:
+                self.table_video_claims.remove(self.table_video_claims[int(self.selected_row)])
                 self.window['table_video_claims'].update(values=self.table_video_claims)
-                selected_row = None
+                self.selected_row = None
             else:
                 sg.popup_auto_close("Please select a row", auto_close_duration=2)
         if event == 'start_concat_videos':

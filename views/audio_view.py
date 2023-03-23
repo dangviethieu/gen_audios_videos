@@ -1,8 +1,6 @@
-import os
-import time
 from .base import BaseView, sg
 from controllers.config import ConfigSetup, Config, Claim
-from controllers.concat_audios import ConcatHandler
+from controllers.concat_audios import ConcatAudioHandler
 from helpers.constants import ConcatOptions
 
 
@@ -10,7 +8,8 @@ class AudioView(BaseView):
     def __init__(self):
         super().__init__()
         self.config_setup = ConfigSetup()
-        self.concat_handler = ConcatHandler()
+        self.concat_handler = ConcatAudioHandler()
+        self.selected_row = None
         self.table_audio_claims = [[claim.path, claim.pos] for claim in self.config_setup.config_audios.claims]
         
     def claim_window(self):
@@ -66,8 +65,8 @@ class AudioView(BaseView):
                     [
                         sg.Table(
                             values=self.table_audio_claims,
-                            headings=['Path', 'Position'],
-                            col_widths=[78, 10, 10],
+                            headings=['Path', 'Pos'],
+                            col_widths=[83, 5],
                             auto_size_columns=False,
                             justification='left',
                             num_rows=10,
@@ -76,8 +75,6 @@ class AudioView(BaseView):
                             row_height=20,
                             def_col_width=10,
                             hide_vertical_scroll=True,
-                            alternating_row_color='lightblue',
-                            tooltip='This is a table',
                         ),
                         sg.Column([
                             [
@@ -116,16 +113,15 @@ class AudioView(BaseView):
         ]
 
     def handle_events(self, event, values):
-        selected_row = None
         if event == 'table_audio_claims':
-            selected_row = str(values['table_audio_claims'][0])
+            self.selected_row = str(values['table_audio_claims'][0])
         if event == 'add_audio_claim':
             self.claim_window()
         if event == 'remove_audio_claim':
-            if selected_row:
-                self.table_audio_claims.remove(self.table_audio_claims[int(selected_row)])
+            if self.selected_row:
+                self.table_audio_claims.remove(self.table_audio_claims[int(self.selected_row)])
                 self.window['table_audio_claims'].update(values=self.table_audio_claims)
-                selected_row = None
+                self.selected_row = None
             else:
                 sg.popup_auto_close("Please select a row", auto_close_duration=2)
         if event == 'start_concat_audios':

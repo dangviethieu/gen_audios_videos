@@ -20,4 +20,4 @@ def get_length(filename: str) -> float:
 def call_ffmpeg(cmd):
     process = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding='utf-8') 
     for _ in process.stdout:
-        pass
+        print(_)
