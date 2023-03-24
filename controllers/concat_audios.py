@@ -121,12 +121,18 @@ class ConcatTask(Process):
                                     description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                     current_length += file_length
                             cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_audio}.txt\" -c copy \"{config.output_folder}/{title_audio}\""
-                            call_ffmpeg(cmd)
-                            os.remove(f"configs/{title_audio}.txt")
-                            # write description file
-                            with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
-                                f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            response = call_ffmpeg(cmd)
+                            if response.status:
+                                os.remove(f"configs/{title_audio}.txt")
+                                # write description file
+                                with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
+                                    f.write(description)
+                                custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            else:
+                                os.remove(f"configs/{title_audio}.txt")
+                                os.remove(f"{config.output_folder}/{title_audio}")
+                                custom_log(f'#Thread {index+1}: concat {title_audio} failed!')
+                                self._logger.error(f"Error: {response.message}")
                         # option 2: concat filter
                         else:
                             no_files = len(files_)
@@ -152,11 +158,16 @@ class ConcatTask(Process):
                             for index_file in range(len(files_)):
                                 cmd += "[" + str(index_file) + ":a]"
                             cmd += f" concat=n={no_files}:v=0:a=1 [a]\" -map [a] \"{config.output_folder}/{title_audio}\""
-                            call_ffmpeg(cmd)
-                            # write description file
-                            with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
-                                f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            response = call_ffmpeg(cmd)
+                            if response.status:
+                                # write description file
+                                with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
+                                    f.write(description)
+                                custom_log(f'#Thread {index+1}: concat {title_audio} successfully!')
+                            else:
+                                os.remove(f"{config.output_folder}/{title_audio}")
+                                custom_log(f'#Thread {index+1}: concat {title_audio} failed!')
+                                self._logger.error(f"Error: {response.message}")
                     except Exception as e:
                         custom_log(f'#Thread {index+1}: concat {title_audio} failed!')
                         _, _, exc_tb = sys.exc_info()

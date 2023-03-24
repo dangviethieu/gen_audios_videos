@@ -1,5 +1,11 @@
 import random
 import subprocess
+from pydantic import BaseModel
+
+
+class Response(BaseModel):
+    status: bool = False
+    message: str = ""
 
 
 def random_line(filename):
@@ -17,9 +23,13 @@ def get_length(filename: str) -> float:
             pass
     return length
 
-def call_ffmpeg(cmd):
+def call_ffmpeg(cmd) -> Response:
     # print(cmd)
     process = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, encoding='utf-8') 
+    stdout = []
     for _ in process.stdout:
-        pass
-        # print(_.replace("\n", ""))
+        stdout.append(_.replace("\n", ""))
+    if "failed" not in str(stdout).lower():
+        return Response(status=True, message=" ")
+    return Response(status=False, message="\n".join(stdout))
+        

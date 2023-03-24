@@ -70,9 +70,20 @@ class ConcatTask(Process):
         self.tasks_to_accomplish = tasks_to_accomplish
         self.logs = logs
         self.tasks_done = tasks_done
+        self._logger = setup_custom_logger('concat video task')
+        
+    def create_video_from_audio_and_image(self, audio_file: str, image_file: str, output_file: str) -> bool:
+        self._logger.info(f"Create video from audio and image: {audio_file} - {image_file} - {output_file}")
+        cmd = f'ffmpeg -y -loop 1 -i "{image_file}" -i "{audio_file}" -c:v libx264 -tune stillimage -c:a aac -b:a 192k -pix_fmt yuv420p -shortest "{output_file}"'
+        response = call_ffmpeg(cmd)
+        if response.status:
+            self._logger.info(f"Create video from audio and image successfully")
+            return True
+        else:
+            self._logger.error(f"Create video from audio and image failed: {response.message}")
+            return False
     
     def run(self):
-        self._logger = setup_custom_logger('concat video task')
         custom_log = lambda x: (self.logs.put(x), self._logger.info(x))
         while True:
             try:
@@ -103,16 +114,17 @@ class ConcatTask(Process):
                                 for index_file, file in enumerate(files_):
                                     for claim in config.claims:
                                         if index_file == claim.pos:
-                                            # check file format
-                                            if claim.path.split('.')[-1] == file.split('.')[-1]:
-                                                f.write(f"file '{claim.path}'\n")
+                                            # create video from audio and image
+                                            video_created_from_claim_path = f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}"
+                                            if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                                                f.write(f"file '{video_created_from_claim_path}'\n")
                                                 # get length of claim file
-                                                claim_length = get_length(claim.path)
+                                                claim_length = get_length(video_created_from_claim_path)
                                                 # add claim file into description file
-                                                description += f"{Path(claim.path).stem} -{time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                                description += f"{Path(video_created_from_claim_path).stem} -{time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                                 current_length += claim_length
                                             else:
-                                                custom_log(f'#Thread {index+1}: ---> need claim file {claim.pos} format same with input files format!')
+                                                custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
                                             break
                                     f.write(f"file '{file}'\n")
                                     # get length of claim file
@@ -121,12 +133,18 @@ class ConcatTask(Process):
                                     description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                     current_length += file_length
                             cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_video}.txt\" -c copy \"{config.output_folder}/{title_video}\""
-                            call_ffmpeg(cmd)
-                            os.remove(f"configs/{title_video}.txt")
-                            # write description file
-                            with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
-                                f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
+                            response = call_ffmpeg(cmd)
+                            if response.status:
+                                os.remove(f"configs/{title_video}.txt")
+                                # write description file
+                                with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
+                                    f.write(description)
+                                custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
+                            else:
+                                os.remove(f"configs/{title_video}.txt")
+                                os.remove(f"{config.output_folder}/{title_video}")
+                                custom_log(f'#Thread {index+1}: concat {title_video} failed!')
+                                self._logger.error(f"Error: {response.message}")
                         # option 2: concat filter
                         else:
                             no_files = len(files_)
@@ -134,14 +152,19 @@ class ConcatTask(Process):
                             for index_file, file in enumerate(files_):
                                 for claim in config.claims:
                                     if index_file == claim.pos:
-                                        cmd += "-i \"" + claim.path + "\" "
-                                        no_files += 1
-                                        # get length of claim file
-                                        claim_length = get_length(claim.path)
-                                        # add claim file into description file
-                                        description += f"{Path(claim.path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                        current_length += claim_length
-                                        break
+                                        # create video from audio and image
+                                        video_created_from_claim_path = f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}"
+                                        if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                                            cmd += "-i \"" + video_created_from_claim_path + "\" "
+                                            no_files += 1
+                                            # get length of claim file
+                                            claim_length = get_length(video_created_from_claim_path)
+                                            # add claim file into description file
+                                            description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                            current_length += claim_length
+                                            break
+                                        else:
+                                            custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
                                 cmd += "-i \"" + file + "\" "
                                 # get length of claim file
                                 file_length = get_length(file)
@@ -152,11 +175,16 @@ class ConcatTask(Process):
                             for index_file in range(len(files_)):
                                 cmd += "[" + str(index_file) + ":v][" + str(index_file) + ":a]"
                             cmd += f" concat=n={no_files}:v=1:a=1 [v][a]\" -map [v] -map [a] \"{config.output_folder}/{title_video}\""
-                            call_ffmpeg(cmd)
-                            # write description file
-                            with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
-                                f.write(description)
-                            custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
+                            response = call_ffmpeg(cmd)
+                            if response.status:
+                                # write description file
+                                with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
+                                    f.write(description)
+                                custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
+                            else:
+                                os.remove(f"{config.output_folder}/{title_video}")
+                                custom_log(f'#Thread {index+1}: concat {title_video} failed!')
+                                self._logger.error(f"Error: {response.message}")
                     except Exception as e:
                         custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                         _, _, exc_tb = sys.exc_info()
