@@ -3,4 +3,6 @@ test
 logs
 configs
 ff*
+build
+dist
 __pycache__

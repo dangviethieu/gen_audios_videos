@@ -19,7 +19,7 @@ class MainView:
                 sg.Tab('videos', layout=self.video_view.create_layout()),
             ]])]
         ]
-        self.window = sg.Window(f'{TOOL_NAME} v{VERSION}', layout, icon='icon.ico')
+        self.window = sg.Window(f'{TOOL_NAME} v{VERSION}', layout, icon=sg.EMOJI_BASE64_PONDER, finalize=True)
         # set window for gui
         self.audio_view.set_window(self.window)
         self.video_view.set_window(self.window)

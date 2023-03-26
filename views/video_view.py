@@ -143,7 +143,7 @@ class VideoView(BaseView):
                     files_number=self.window['video_files_number'].get(),
                     threads=self.window['video_threads'].get(),
                     concat_option=self.window['video_concat_options'].get(),
-                    claims=[Claim(path=claim[0], pos=claim[1]) for claim in self.table_video_claims],
+                    claims=[Claim(path=claim[0], background=claim[1], pos=claim[2]) for claim in self.table_video_claims],
                 )
             )
             # run concat
