@@ -96,6 +96,7 @@ class ConcatTask(Process):
                 self._logger.error(f"Error: {e} at line {exc_tb.tb_lineno}")
                 break
             else:
+                videos_created_from_claim = []
                 files_splitted = [files[i:i + config.files_number] for i in range(0, len(files), config.files_number)]
                 for files_ in files_splitted:
                     try:
@@ -106,7 +107,6 @@ class ConcatTask(Process):
                         title_description = title + ".txt"
                         description = ""
                         current_length = 0
-                        videos_created_from_claim = []
                         # start concat
                         custom_log(f'#Thread {index+1}: concat {title_video} ...')
                         # option 1: concat demuxer
@@ -116,19 +116,20 @@ class ConcatTask(Process):
                                     for claim in config.claims:
                                         if index_file == claim.pos:
                                             # create video from audio and image
-                                            custom_log(f'#Thread {index+1}: ---> create video from audio and image: {claim.path} - {claim.background}')
+                                            custom_log(f'#Thread {index+1}: ---> create video from audio and image')
                                             video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
-                                            if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
-                                                custom_log(f'#Thread {index+1}: ---> create video from audio and image successfully: {video_created_from_claim_path}')
-                                                f.write(f"file '{video_created_from_claim_path}'\n")
-                                                # get length of claim file
-                                                claim_length = get_length(video_created_from_claim_path)
-                                                # add claim file into description file
-                                                description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                                current_length += claim_length
-                                                videos_created_from_claim.append(video_created_from_claim_path)
-                                            else:
-                                                custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
+                                            if not os.path.exists(video_created_from_claim_path):
+                                                if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                                                    custom_log(f'#Thread {index+1}: ---> create video from audio and image successfully')
+                                                    f.write(f"file '{video_created_from_claim_path}'\n")
+                                                    # get length of claim file
+                                                    claim_length = get_length(video_created_from_claim_path)
+                                                    # add claim file into description file
+                                                    description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                                    current_length += claim_length
+                                                    videos_created_from_claim.append(video_created_from_claim_path)
+                                                else:
+                                                    custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
                                             break
                                     f.write(f"file '{file}'\n")
                                     # get length of claim file
@@ -138,9 +139,6 @@ class ConcatTask(Process):
                                     current_length += file_length
                             cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_video}.txt\" -c copy \"{config.output_folder}/{title_video}\""
                             response = call_ffmpeg(cmd)
-                            # remove claim files
-                            for video_created_from_claim in videos_created_from_claim:
-                                os.remove(video_created_from_claim)
                             # remove txt file
                             os.remove(f"configs/{title_video}.txt")
                             if response.status:
@@ -162,18 +160,19 @@ class ConcatTask(Process):
                                     if index_file == claim.pos:
                                         # create video from audio and image
                                         video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
-                                        if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
-                                            cmd += "-i \"" + video_created_from_claim_path + "\" "
-                                            no_files += 1
-                                            # get length of claim file
-                                            claim_length = get_length(video_created_from_claim_path)
-                                            # add claim file into description file
-                                            description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                            current_length += claim_length
-                                            videos_created_from_claim.append(video_created_from_claim_path)
-                                            break
-                                        else:
-                                            custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
+                                        if not os.path.exists(video_created_from_claim_path):
+                                            if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                                                cmd += "-i \"" + video_created_from_claim_path + "\" "
+                                                no_files += 1
+                                                # get length of claim file
+                                                claim_length = get_length(video_created_from_claim_path)
+                                                # add claim file into description file
+                                                description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                                current_length += claim_length
+                                                videos_created_from_claim.append(video_created_from_claim_path)
+                                            else:
+                                                custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
+                                        break
                                 cmd += "-i \"" + file + "\" "
                                 # get length of claim file
                                 file_length = get_length(file)
@@ -185,9 +184,6 @@ class ConcatTask(Process):
                                 cmd += "[" + str(index_file) + ":v][" + str(index_file) + ":a]"
                             cmd += f" concat=n={no_files}:v=1:a=1 [v][a]\" -map [v] -map [a] \"{config.output_folder}/{title_video}\""
                             response = call_ffmpeg(cmd)
-                            # remove claim files
-                            for video_created_from_claim in videos_created_from_claim:
-                                os.remove(video_created_from_claim)
                             if response.status:
                                 # write description file
                                 with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
@@ -201,6 +197,12 @@ class ConcatTask(Process):
                         custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                         _, _, exc_tb = sys.exc_info()
                         custom_log(f'#Thread {index+1}: line: {exc_tb.tb_lineno}, error: {e}')
+                # remove claim files
+                for video_created_from_claim in videos_created_from_claim:
+                    try:
+                        os.remove(video_created_from_claim)
+                    except:
+                        pass
                 self.tasks_done.put(1)
                 custom_log(f'#Thread {index+1}: Done')
                 return
