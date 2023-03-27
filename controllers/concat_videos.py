@@ -197,12 +197,12 @@ class ConcatTask(Process):
                         custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                         _, _, exc_tb = sys.exc_info()
                         custom_log(f'#Thread {index+1}: line: {exc_tb.tb_lineno}, error: {e}')
-                # remove claim files
-                for video_created_from_claim in videos_created_from_claim:
-                    try:
-                        os.remove(video_created_from_claim)
-                    except:
-                        pass
+                # # remove claim files
+                # for video_created_from_claim in videos_created_from_claim:
+                #     try:
+                #         os.remove(video_created_from_claim)
+                #     except:
+                #         pass
                 self.tasks_done.put(1)
                 custom_log(f'#Thread {index+1}: Done')
                 return
