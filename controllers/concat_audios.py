@@ -9,6 +9,7 @@ import sys
 import time
 import random
 from pathlib import Path
+from copy import deepcopy
 
 
 class ConcatAudioHandler(BaseHandler):
@@ -42,16 +43,27 @@ class ConcatAudioHandler(BaseHandler):
         files_title = []
         for file_title_path in files_title_path:
             files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
+        titles_output = []
+        for _ in range(config.files_output_number):
+            while files_title:
+                title = random.choice(files_title)
+                if title not in titles_output:
+                    titles_output.append(title)
+                    files_title.remove(title)
+                    break
+            else:
+                self.logs.put(f"No more title to use")
+                self.tasks_done.put(1)
+                return
         
-        self.custom_log(f'Start concat each {config.files_number} files in total {len(files)} files in folder {config.input_folder}...')
+        self.custom_log(f'Start generate {config.files_output_number} files ...')
         tasks_to_accomplish = Queue()
-        split_point = int(len(files) / config.threads)
-        split_point = split_point if split_point > config.files_number else config.files_number
+        split_point = int(len(titles_output) / config.threads)
         for index in range(config.threads):
             if index != config.threads - 1:
-                tasks_to_accomplish.put((index, config ,files[split_point*index:split_point*(index+1)], files_title), block=True, timeout=5)
+                tasks_to_accomplish.put((index, config ,files, titles_output[split_point*index:split_point*(index+1)]), block=True, timeout=5)
             else:
-                tasks_to_accomplish.put((index, config, files[split_point*index:], files_title), block=True, timeout=5)
+                tasks_to_accomplish.put((index, config, files, titles_output[split_point*index:]), block=True, timeout=5)
         for _ in range(config.threads):
             p = ConcatTask(tasks_to_accomplish, self.logs, self.tasks_done)
             self.processes.append(p)
@@ -77,7 +89,7 @@ class ConcatTask(Process):
         while True:
             try:
                 if not self.tasks_to_accomplish.empty():
-                    index, config, files, files_title = self.tasks_to_accomplish.get(block=True, timeout=5)
+                    index, config, files, titles = self.tasks_to_accomplish.get(block=True, timeout=5)
                     time.sleep(0.1)
                     config: Config = config
             except Exception as e:
@@ -85,22 +97,22 @@ class ConcatTask(Process):
                 self._logger.error(f"Error: {e} at line {exc_tb.tb_lineno}")
                 break
             else:
-                files_splitted = [files[i:i + config.files_number] for i in range(0, len(files), config.files_number)]
-                for files_ in files_splitted:
+                for title in titles:
                     try:
                         # init params
-                        title = random.choice(files_title)
-                        files_title.remove(title)
                         title_audio = title + "." + files[0].split('.')[-1]
                         title_description = title + ".txt"
                         description = ""
                         current_length = 0
+                        files_input = deepcopy(files)
+                        files_output = []
+                        file_index = 0
                         # start concat
                         custom_log(f'#Thread {index+1}: concat {title_audio} ...')
                         # option 1: concat demuxer
                         if config.concat_option == ConcatOptions.CONCAT_DEMUXER.value:
                             with open(f"configs/{title_audio}.txt", "w", encoding='utf-8') as f:
-                                for index_file, file in enumerate(files_):
+                                while file_index < config.files_input_number:
                                     for claim in config.claims:
                                         if index_file == claim.pos:
                                             # check file format
@@ -114,12 +126,22 @@ class ConcatTask(Process):
                                             else:
                                                 custom_log(f'#Thread {index+1}: ---> need claim file {claim.pos} format same with input files format!')
                                             break
-                                    f.write(f"file '{file}'\n")
-                                    # get length of claim file
-                                    file_length = get_length(file)
-                                    # add claim file into description file
-                                    description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                    current_length += file_length
+                                    while files_input:
+                                        file = random.choice(files_input)
+                                        if file not in files_output:
+                                            files_input.remove(file)
+                                            f.write(f"file '{file}'\n")
+                                            # get length of claim file
+                                            file_length = get_length(file)
+                                            # add claim file into description file
+                                            description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                            current_length += file_length
+                                            files_output.append(file)
+                                            file_index += 1
+                                            break
+                                    else:
+                                        custom_log(f'#Thread {index+1}: ---> no more file to use!')
+                                        break
                             cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_audio}.txt\" -c copy \"{config.output_folder}/{title_audio}\""
                             response = call_ffmpeg(cmd)
                             if response.status:
@@ -135,9 +157,9 @@ class ConcatTask(Process):
                                 self._logger.error(f"Error: {response.message}")
                         # option 2: concat filter
                         else:
-                            no_files = len(files_)
+                            no_files = config.files_input_number
                             cmd = "ffmpeg -y "
-                            for index_file, file in enumerate(files_):
+                            while file_index < config.files_input_number:
                                 for claim in config.claims:
                                     if index_file == claim.pos:
                                         cmd += "-i \"" + claim.path + "\" "
@@ -148,14 +170,22 @@ class ConcatTask(Process):
                                         description += f"{Path(claim.path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
                                         current_length += claim_length
                                         break
-                                cmd += "-i \"" + file + "\" "
-                                # get length of claim file
-                                file_length = get_length(file)
-                                # add claim file into description file
-                                description += f"{Path(file).stem} -{time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                current_length += file_length
+                                while files_input:
+                                    file = random.choice(files_input)
+                                    if file not in files_output:
+                                        cmd += "-i \"" + file + "\" "
+                                        # get length of claim file
+                                        file_length = get_length(file)
+                                        # add claim file into description file
+                                        description += f"{Path(file).stem} -{time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                        current_length += file_length
+                                        file_index += 1
+                                        break
+                                else:
+                                    custom_log(f'#Thread {index+1}: ---> no more file to use!')
+                                    break
                             cmd += "-filter_complex \""
-                            for index_file in range(len(files_)):
+                            for index_file in range(no_files):
                                 cmd += "[" + str(index_file) + ":a]"
                             cmd += f" concat=n={no_files}:v=0:a=1 [a]\" -map [a] \"{config.output_folder}/{title_audio}\""
                             response = call_ffmpeg(cmd)

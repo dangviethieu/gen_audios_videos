@@ -14,7 +14,8 @@ class Config(BaseModel):
     input_title: str
     output_folder: str
     with_gpu: bool = False
-    files_number: int = 100
+    files_output_number: int = 1
+    files_input_number: int = 100
     threads: int = 1
     concat_option: str = ConcatOptions.CONCAT_DEMUXER.value
     claims: list[Claim] = []
@@ -49,7 +50,8 @@ class ConfigSetup:
                 input_title='',
                 output_folder='',
                 with_gpu=False,
-                files_number=100,
+                files_output_number=1,
+                files_input_number=100,
                 threads=1,
                 concat_option=ConcatOptions.CONCAT_DEMUXER.value,
                 claims=[],
@@ -65,7 +67,8 @@ class ConfigSetup:
                 input_title='',
                 output_folder='',
                 with_gpu=False,
-                files_number=100,
+                files_output_number=1,
+                files_input_number=100,
                 threads=1,
                 concat_option=ConcatOptions.CONCAT_DEMUXER.value,
                 claims=[],

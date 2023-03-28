@@ -43,10 +43,10 @@ class ConcatVideoHandler(BaseHandler):
         for file_title_path in files_title_path:
             files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
         
-        self.custom_log(f'Start concat each {config.files_number} files in total {len(files)} files in folder {config.input_folder}...')
+        self.custom_log(f'Start concat each {config.files_input_number} files in total {len(files)} files in folder {config.input_folder}...')
         tasks_to_accomplish = Queue()
         split_point = int(len(files) / config.threads)
-        split_point = split_point if split_point > config.files_number else config.files_number
+        split_point = split_point if split_point > config.files_input_number else config.files_input_number
         for index in range(config.threads):
             if index != config.threads - 1:
                 tasks_to_accomplish.put((index, config ,files[split_point*index:split_point*(index+1)], files_title), block=True, timeout=5)
@@ -97,7 +97,7 @@ class ConcatTask(Process):
                 break
             else:
                 videos_created_from_claim = []
-                files_splitted = [files[i:i + config.files_number] for i in range(0, len(files), config.files_number)]
+                files_splitted = [files[i:i + config.files_input_number] for i in range(0, len(files), config.files_input_number)]
                 for files_ in files_splitted:
                     try:
                         # init params
