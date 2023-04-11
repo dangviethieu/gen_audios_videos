@@ -115,7 +115,8 @@ class AudioView(BaseView):
 
     def handle_events(self, event, values):
         if event == 'table_audio_claims':
-            self.selected_row = str(values['table_audio_claims'][0])
+            if values['table_audio_claims']:
+                self.selected_row = str(values['table_audio_claims'][0])
         if event == 'add_audio_claim':
             self.claim_window()
         if event == 'remove_audio_claim':

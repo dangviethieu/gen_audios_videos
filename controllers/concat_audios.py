@@ -114,7 +114,7 @@ class ConcatTask(Process):
                             with open(f"configs/{title_audio}.txt", "w", encoding='utf-8') as f:
                                 while file_index < config.files_input_number:
                                     for claim in config.claims:
-                                        if index_file == claim.pos:
+                                        if file_index == claim.pos:
                                             # check file format
                                             if claim.path.split('.')[-1] == file.split('.')[-1]:
                                                 f.write(f"file '{claim.path}'\n")
@@ -161,7 +161,7 @@ class ConcatTask(Process):
                             cmd = "ffmpeg -y "
                             while file_index < config.files_input_number:
                                 for claim in config.claims:
-                                    if index_file == claim.pos:
+                                    if file_index == claim.pos:
                                         cmd += "-i \"" + claim.path + "\" "
                                         no_files += 1
                                         # get length of claim file
@@ -185,8 +185,8 @@ class ConcatTask(Process):
                                     custom_log(f'#Thread {index+1}: ---> no more file to use!')
                                     break
                             cmd += "-filter_complex \""
-                            for index_file in range(no_files):
-                                cmd += "[" + str(index_file) + ":a]"
+                            for file_index in range(no_files):
+                                cmd += "[" + str(file_index) + ":a]"
                             cmd += f" concat=n={no_files}:v=0:a=1 [a]\" -map [a] \"{config.output_folder}/{title_audio}\""
                             response = call_ffmpeg(cmd)
                             if response.status:

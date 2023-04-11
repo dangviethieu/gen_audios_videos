@@ -9,6 +9,7 @@ import sys
 import time
 import random
 from pathlib import Path
+from copy import deepcopy
 
 
 class ConcatVideoHandler(BaseHandler):
@@ -42,20 +43,54 @@ class ConcatVideoHandler(BaseHandler):
         files_title = []
         for file_title_path in files_title_path:
             files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
+        titles_output = []
+        for _ in range(config.files_output_number):
+            while files_title:
+                title = random.choice(files_title)
+                if title not in titles_output:
+                    titles_output.append(title)
+                    files_title.remove(title)
+                    break
+            else:
+                self.logs.put(f"No more title to use")
+                self.tasks_done.put(1)
+                return
         
-        self.custom_log(f'Start concat each {config.files_input_number} files in total {len(files)} files in folder {config.input_folder}...')
+        self.custom_log(f'Start generate {config.files_output_number} files ...')
         tasks_to_accomplish = Queue()
-        split_point = int(len(files) / config.threads)
-        split_point = split_point if split_point > config.files_input_number else config.files_input_number
+        split_point = int(len(titles_output) / config.threads)
         for index in range(config.threads):
             if index != config.threads - 1:
-                tasks_to_accomplish.put((index, config ,files[split_point*index:split_point*(index+1)], files_title), block=True, timeout=5)
+                tasks_to_accomplish.put((index, config ,files, titles_output[split_point*index:split_point*(index+1)]), block=True, timeout=5)
             else:
-                tasks_to_accomplish.put((index, config, files[split_point*index:], files_title), block=True, timeout=5)
+                tasks_to_accomplish.put((index, config, files, titles_output[split_point*index:]), block=True, timeout=5)
         for _ in range(config.threads):
             p = ConcatTask(tasks_to_accomplish, self.logs, self.tasks_done)
             self.processes.append(p)
             p.start()
+        # # get files from input title folder
+        # files_title_path = glob.glob(os.path.join(config.input_title, "*.txt"))
+        # if not files_title_path:
+        #     self.logs.put(f"No files in input title folder")
+        #     self.tasks_done.put(1)
+        #     return
+        # files_title = []
+        # for file_title_path in files_title_path:
+        #     files_title.extend(open(file_title_path, encoding='utf-8').read().splitlines())
+        
+        # self.custom_log(f'Start concat each {config.files_input_number} files in total {len(files)} files in folder {config.input_folder}...')
+        # tasks_to_accomplish = Queue()
+        # split_point = int(len(files) / config.threads)
+        # split_point = split_point if split_point > config.files_input_number else config.files_input_number
+        # for index in range(config.threads):
+        #     if index != config.threads - 1:
+        #         tasks_to_accomplish.put((index, config ,files[split_point*index:split_point*(index+1)], files_title), block=True, timeout=5)
+        #     else:
+        #         tasks_to_accomplish.put((index, config, files[split_point*index:], files_title), block=True, timeout=5)
+        # for _ in range(config.threads):
+        #     p = ConcatTask(tasks_to_accomplish, self.logs, self.tasks_done)
+        #     self.processes.append(p)
+        #     p.start()
 
     def stop(self):
         self.custom_log('Stop concat video task')
@@ -88,7 +123,7 @@ class ConcatTask(Process):
         while True:
             try:
                 if not self.tasks_to_accomplish.empty():
-                    index, config, files, files_title = self.tasks_to_accomplish.get(block=True, timeout=5)
+                    index, config, files, titles = self.tasks_to_accomplish.get(block=True, timeout=5)
                     time.sleep(0.1)
                     config: Config = config
             except Exception as e:
@@ -97,24 +132,24 @@ class ConcatTask(Process):
                 break
             else:
                 videos_created_from_claim = []
-                files_splitted = [files[i:i + config.files_input_number] for i in range(0, len(files), config.files_input_number)]
-                for files_ in files_splitted:
+                for title in titles:
                     try:
                         # init params
-                        title = random.choice(files_title)
-                        files_title.remove(title)
                         title_video = title + "." + files[0].split('.')[-1]
                         title_description = title + ".txt"
                         description = ""
                         current_length = 0
+                        files_input = deepcopy(files)
+                        file_index = 0
+                        files_output = []
                         # start concat
                         custom_log(f'#Thread {index+1}: concat {title_video} ...')
                         # option 1: concat demuxer
                         if config.concat_option == ConcatOptions.CONCAT_DEMUXER.value:
                             with open(f"configs/{title_video}.txt", "w", encoding='utf-8') as f:
-                                for index_file, file in enumerate(files_):
+                                while file_index < config.files_input_number:
                                     for claim in config.claims:
-                                        if index_file == claim.pos:
+                                        if file_index == claim.pos:
                                             # create video from audio and image
                                             custom_log(f'#Thread {index+1}: ---> create video from audio and image')
                                             video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
@@ -130,14 +165,32 @@ class ConcatTask(Process):
                                                     videos_created_from_claim.append(video_created_from_claim_path)
                                                 else:
                                                     custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
+                                            else:
+                                                f.write(f"file '{video_created_from_claim_path}'\n")
+                                                # get length of claim file
+                                                claim_length = get_length(video_created_from_claim_path)
+                                                # add claim file into description file
+                                                description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                                current_length += claim_length
+                                                videos_created_from_claim.append(video_created_from_claim_path)
                                             break
-                                    f.write(f"file '{file}'\n")
-                                    # get length of claim file
-                                    file_length = get_length(file)
-                                    # add claim file into description file
-                                    description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                    current_length += file_length
-                            cmd = f"ffmpeg -y -loglevel quiet -f concat -safe 0 -i \"configs/{title_video}.txt\" -c copy \"{config.output_folder}/{title_video}\""
+                                    while files_input:
+                                        file = random.choice(files_input)
+                                        if file not in files_output:
+                                            f.write(f"file '{file}'\n")
+                                            # get length of claim file
+                                            file_length = get_length(file)
+                                            # add claim file into description file
+                                            description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                                            current_length += file_length
+                                            files_output.append(file)
+                                            file_index += 1
+                                            break
+                                    else:
+                                        custom_log(f'#Thread {index+1}: ---> no more file to use!')
+                                        break
+                            # cmd = f"ffmpeg -y -f concat -segment_time_metadata 1 -safe 0 -i \"configs/{title_video}.txt\" -vf select=concatdec_select -af aselect=concatdec_select,aresample=async=1 \"{config.output_folder}/{title_video}\""
+                            cmd = f"ffmpeg -y -f concat -safe 0 -i \"configs/{title_video}.txt\" -vsync 1 -async -1 -c copy \"{config.output_folder}/{title_video}\""
                             response = call_ffmpeg(cmd)
                             # remove txt file
                             os.remove(f"configs/{title_video}.txt")
@@ -147,52 +200,51 @@ class ConcatTask(Process):
                                     f.write(description)
                                 custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
                             else:
-                                # remove video file
                                 os.remove(f"{config.output_folder}/{title_video}")
                                 custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                                 self._logger.error(f"Error: {response.message}")
-                        # option 2: concat filter
-                        else:
-                            no_files = len(files_)
-                            cmd = "ffmpeg -y "
-                            for index_file, file in enumerate(files_):
-                                for claim in config.claims:
-                                    if index_file == claim.pos:
-                                        # create video from audio and image
-                                        video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
-                                        if not os.path.exists(video_created_from_claim_path):
-                                            if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
-                                                cmd += "-i \"" + video_created_from_claim_path + "\" "
-                                                no_files += 1
-                                                # get length of claim file
-                                                claim_length = get_length(video_created_from_claim_path)
-                                                # add claim file into description file
-                                                description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                                current_length += claim_length
-                                                videos_created_from_claim.append(video_created_from_claim_path)
-                                            else:
-                                                custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
-                                        break
-                                cmd += "-i \"" + file + "\" "
-                                # get length of claim file
-                                file_length = get_length(file)
-                                # add claim file into description file
-                                description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
-                                current_length += file_length
-                            cmd += "-filter_complex \""
-                            for index_file in range(len(files_)):
-                                cmd += "[" + str(index_file) + ":v][" + str(index_file) + ":a]"
-                            cmd += f" concat=n={no_files}:v=1:a=1 [v][a]\" -map [v] -map [a] \"{config.output_folder}/{title_video}\""
-                            response = call_ffmpeg(cmd)
-                            if response.status:
-                                # write description file
-                                with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
-                                    f.write(description)
-                                custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
-                            else:
-                                os.remove(f"{config.output_folder}/{title_video}")
-                                custom_log(f'#Thread {index+1}: concat {title_video} failed!')
-                                self._logger.error(f"Error: {response.message}")
+                        # # option 2: concat filter
+                        # else:
+                        #     no_files = len(files_)
+                        #     cmd = "ffmpeg -y "
+                        #     for file_index, file in enumerate(files_):
+                        #         for claim in config.claims:
+                        #             if file_index == claim.pos:
+                        #                 # create video from audio and image
+                        #                 video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
+                        #                 if not os.path.exists(video_created_from_claim_path):
+                        #                     if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                        #                         cmd += "-i \"" + video_created_from_claim_path + "\" "
+                        #                         no_files += 1
+                        #                         # get length of claim file
+                        #                         claim_length = get_length(video_created_from_claim_path)
+                        #                         # add claim file into description file
+                        #                         description += f"{Path(video_created_from_claim_path).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                        #                         current_length += claim_length
+                        #                         videos_created_from_claim.append(video_created_from_claim_path)
+                        #                     else:
+                        #                         custom_log(f'#Thread {index+1}: ---> create video from audio and image failed!')
+                        #                 break
+                        #         cmd += "-i \"" + file + "\" "
+                        #         # get length of claim file
+                        #         file_length = get_length(file)
+                        #         # add claim file into description file
+                        #         description += f"{Path(file).stem} - {time.strftime('%H:%M:%S', time.gmtime(current_length))}\n"
+                        #         current_length += file_length
+                        #     cmd += "-filter_complex \""
+                        #     for file_index in range(len(files_)):
+                        #         cmd += "[" + str(file_index) + ":v][" + str(file_index) + ":a]"
+                        #     cmd += f" concat=n={no_files}:v=1:a=1 [v][a]\" -map [v] -map [a] \"{config.output_folder}/{title_video}\""
+                        #     response = call_ffmpeg(cmd)
+                        #     if response.status:
+                        #         # write description file
+                        #         with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
+                        #             f.write(description)
+                        #         custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
+                        #     else:
+                        #         os.remove(f"{config.output_folder}/{title_video}")
+                        #         custom_log(f'#Thread {index+1}: concat {title_video} failed!')
+                        #         self._logger.error(f"Error: {response.message}")
                     except Exception as e:
                         custom_log(f'#Thread {index+1}: concat {title_video} failed!')
                         _, _, exc_tb = sys.exc_info()

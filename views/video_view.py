@@ -101,7 +101,7 @@ class VideoView(BaseView):
                         sg.Text('No input files'), sg.In(self.config_setup.config_videos.files_input_number, key='video_files_input_number', size=(3,1)), 
                         sg.Text('Threads', size=(8,1)), sg.In(self.config_setup.config_videos.threads, key='video_threads', size=(3,1)),
                         sg.Text('Concat options:'),
-                        sg.Combo([ConcatOptions.CONCAT_DEMUXER.value, ConcatOptions.CONCAT_FILTER.value], default_value=self.config_setup.config_videos.concat_option, key='video_concat_options', enable_events=True), 
+                        sg.Combo([ConcatOptions.CONCAT_DEMUXER.value], default_value=self.config_setup.config_videos.concat_option, key='video_concat_options', enable_events=True), 
                     ],
                 ])
             ],
@@ -120,7 +120,8 @@ class VideoView(BaseView):
 
     def handle_events(self, event, values):
         if event == 'table_video_claims':
-            self.selected_row = str(values['table_video_claims'][0])
+            if values['table_video_claims']:
+                self.selected_row = str(values['table_video_claims'][0])
         if event == 'add_video_claim':
             self.claim_window()
         if event == 'remove_video_claim':
