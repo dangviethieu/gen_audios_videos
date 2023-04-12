@@ -136,6 +136,7 @@ class ConcatTask(Process):
                     try:
                         # init params
                         title_video = title + "." + files[0].split('.')[-1]
+                        title_video_cut = title + "_cut." + files[0].split('.')[-1]
                         title_description = title + ".txt"
                         description = ""
                         current_length = 0
@@ -190,7 +191,7 @@ class ConcatTask(Process):
                                         custom_log(f'#Thread {index+1}: ---> no more file to use!')
                                         break
                             # cmd = f"ffmpeg -y -f concat -segment_time_metadata 1 -safe 0 -i \"configs/{title_video}.txt\" -vf select=concatdec_select -af aselect=concatdec_select,aresample=async=1 \"{config.output_folder}/{title_video}\""
-                            cmd = f"ffmpeg -y -f concat -safe 0 -i \"configs/{title_video}.txt\" -vsync 1 -async -1 -c copy \"{config.output_folder}/{title_video}\""
+                            cmd = f"ffmpeg -y -f concat -safe 0 -i \"configs/{title_video}.txt\" -vsync 1 -async -1 -c copy \"{config.output_folder}/{title_video_cut}\""
                             response = call_ffmpeg(cmd)
                             # remove txt file
                             os.remove(f"configs/{title_video}.txt")
@@ -198,6 +199,18 @@ class ConcatTask(Process):
                                 # write description file
                                 with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
                                     f.write(description)
+                                # check length of video
+                                custom_log(f'#Thread {index+1}: {config.output_folder}/{title_video_cut}"')
+                                length_video_cut = get_length("{config.output_folder}/{title_video_cut}")
+                                custom_log(f'#Thread {index+1}: length of video cut: {length_video_cut}')
+                                custom_log(f'#Thread {index+1}: length of video: {current_length}')
+                                if length_video_cut > current_length + 10:
+                                    cmd = f"ffmpeg -y -i \"{config.output_folder}/{title_video_cut}\" -ss 00:00:00 -t {time.strftime('%H:%M:%S', time.gmtime(current_length))} \"{config.output_folder}/{title_video}\""
+                                    call_ffmpeg(cmd)
+                                    try:
+                                        os.remove(f"{config.output_folder}/{title_video_cut}")
+                                    except:
+                                        pass
                                 custom_log(f'#Thread {index+1}: concat {title_video} successfully!')
                             else:
                                 os.remove(f"{config.output_folder}/{title_video}")

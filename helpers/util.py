@@ -19,7 +19,8 @@ def get_length(filename: str) -> float:
     for out in process.stdout:
         try:
             length = float(out.split("\n")[0])
-        except:
+        except Exception as e:
+            print(e)
             pass
     return length
 
@@ -29,6 +30,7 @@ def call_ffmpeg(cmd) -> Response:
     stdout = []
     for _ in process.stdout:
         stdout.append(_.replace("\n", ""))
+    print(stdout)
     if "failed" not in str(stdout).lower():
         return Response(status=True, message=" ")
     return Response(status=False, message="\n".join(stdout))
