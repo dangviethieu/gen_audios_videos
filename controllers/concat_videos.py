@@ -116,6 +116,33 @@ class ConcatTask(Process):
         else:
             self._logger.error(f"Create video from audio and image failed: {response.message}")
             return False
+        
+    def create_video_from_audio_and_videos(self, audio_file: str, video_files: list[str], output_file: str) -> bool:
+        self._logger.info(f"Create video from audio: {audio_file} - {output_file}")
+        # get audio length
+        audio_length = get_length(audio_file)
+        self._logger.info(f"Audio length: {audio_length}")
+        # loop video with audio length
+        video_file = random.choice(video_files)
+        video_file_ext = video_file.split('.')[-1]
+        output_file_tmp = output_file.replace(f'.{video_file_ext}', f'_tmp.{video_file_ext}')
+        cmd = f'ffmpeg -y -stream_loop -1 -i "{video_file}" -t {audio_length} {output_file_tmp}'
+        response = call_ffmpeg(cmd)
+        if response.status:
+            self._logger.info(f"Create video successfully")
+            # replace audio
+            cmd = f'ffmpeg -y -i "{output_file_tmp}" -i "{audio_file}" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 "{output_file}"'
+            response = call_ffmpeg(cmd)
+            if response.status:
+                self._logger.info(f"Replace audio successfully")
+                os.remove(output_file_tmp)
+                return True
+            else:
+                self._logger.error(f"Replace audio failed: {response.message}")
+                return False
+        else:
+            self._logger.error(f"Create video from audio failed: {response.message}")
+            return False
     
     def run(self):
         self._logger = setup_custom_logger('concat video task')
@@ -155,7 +182,7 @@ class ConcatTask(Process):
                                             custom_log(f'#Thread {index+1}: ---> create video from audio and image')
                                             video_created_from_claim_path = os.path.abspath(f"configs/{Path(claim.path).stem}.{file.split('.')[-1]}")
                                             if not os.path.exists(video_created_from_claim_path):
-                                                if self.create_video_from_audio_and_image(claim.path, claim.background, video_created_from_claim_path):
+                                                if self.create_video_from_audio_and_videos(claim.path, files, video_created_from_claim_path):
                                                     custom_log(f'#Thread {index+1}: ---> create video from audio and image successfully')
                                                     f.write(f"file '{video_created_from_claim_path}'\n")
                                                     # get length of claim file
@@ -200,10 +227,7 @@ class ConcatTask(Process):
                                 with open(f"{config.output_folder}/{title_description}", "w", encoding='utf-8') as f:
                                     f.write(description)
                                 # check length of video
-                                custom_log(f'#Thread {index+1}: {config.output_folder}/{title_video_cut}"')
-                                length_video_cut = get_length("{config.output_folder}/{title_video_cut}")
-                                custom_log(f'#Thread {index+1}: length of video cut: {length_video_cut}')
-                                custom_log(f'#Thread {index+1}: length of video: {current_length}')
+                                length_video_cut = get_length(f"{config.output_folder}/{title_video_cut}")
                                 if length_video_cut > current_length + 10:
                                     cmd = f"ffmpeg -y -i \"{config.output_folder}/{title_video_cut}\" -ss 00:00:00 -t {time.strftime('%H:%M:%S', time.gmtime(current_length))} \"{config.output_folder}/{title_video}\""
                                     call_ffmpeg(cmd)

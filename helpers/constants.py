@@ -4,7 +4,7 @@ import enum
 CONFIG_AUDIOS_FILE = 'config_audio_sub.json'
 CONFIG_VIDEOS_FILE = 'config_video_sub.json'
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 TOOL_NAME = "FFmpeg Concat Tool"
 
 NEED_LOGIN = False
